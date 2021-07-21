@@ -21,7 +21,7 @@ eps_decay = 0.001
 target_update = 10
 memory_size = 100000
 lr = 0.001
-num_episodes = 10
+num_episodes = 100
 
 class CartPoleEnvManager():
     def __init__(self, device):
@@ -45,8 +45,9 @@ class CartPoleEnvManager():
         return self.env.action_space.n
 
     def take_action(self, action):        
-        _, reward, self.done, _ = self.env.step(action.item())
-        return torch.tensor([reward], device=self.device)
+        state, reward, self.done, _ = self.env.step(action.item())
+        artificial_reward = np.float32(((state[0]*1.2)+state[2])*-1)
+        return torch.tensor([artificial_reward], device=self.device)
         
     def just_starting(self):
         return self.current_screen is None
@@ -77,12 +78,12 @@ class CartPoleEnvManager():
         return self.transform_screen_data(screen)
 
     def crop_screen(self, screen):
-        screen_height = screen.shape[1]
+        #screen_height = screen.shape[1]
 
         # Strip off top and bottom
-        top = int(screen_height * 0.4)
-        bottom = int(screen_height * 0.8)
-        screen = screen[:, top:bottom, :]
+        #top = int(screen_height * 0.4)
+        #bottom = int(screen_height * 0.8)
+        #screen = screen[:, top:bottom, :]
         return screen
 
     def transform_screen_data(self, screen):       
@@ -209,11 +210,10 @@ def plot(values, moving_avg_period):
     plt.ylabel('Duration')
     plt.plot(values)
 
-    moving_avg = get_moving_average(moving_avg_period, values)
-    plt.plot(moving_avg)    
+    #moving_avg = get_moving_average(moving_avg_period, values)
+    #plt.plot(moving_avg)    
     plt.pause(0.001)
-    print("Episode", len(values), "\n", \
-        moving_avg_period, "episode moving avg:", moving_avg[-1])
+    print("Episode", len(values), "\n")
     
 
 def get_moving_average(period, values):
@@ -245,8 +245,8 @@ for episode in range(num_episodes):
     em.reset()
     state = em.get_state()
 
-    count = range(300)
-    for timestep in count:
+    
+    for timestep in count():
         action = agent.select_action(state, policy_net)
         reward = em.take_action(action)
         next_state = em.get_state()
@@ -266,10 +266,10 @@ for episode in range(num_episodes):
             loss.backward()
             optimizer.step()
 
-    
-    #episode_durations.append(timestep)
-    #plot(episode_durations, 100)
-    print('Done with an episode')
+        if em.done:
+            episode_durations.append(timestep)
+            plot(episode_durations, 100)
+            break
     
 
     if episode % target_update == 0:
