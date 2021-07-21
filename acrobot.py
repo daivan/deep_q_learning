@@ -265,7 +265,7 @@ for episode in range(num_episodes):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+        print(reward)
         if em.done:
             episode_durations.append(timestep)
             plot(episode_durations, 100)
