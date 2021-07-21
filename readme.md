@@ -8,3 +8,7 @@ Create the conda environment
 ```
 conda install pytorch cpuonly -c pytorch
 ```
+This is needed for the atari games
+```
+pip install gym[atari]
+```
