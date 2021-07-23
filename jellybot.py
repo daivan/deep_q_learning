@@ -1,4 +1,4 @@
-import gym
+from JellyEnvironment import JellyEnvironment
 import math
 import random
 import numpy as np
@@ -21,12 +21,12 @@ eps_decay = 0.001
 target_update = 10
 memory_size = 100000
 lr = 0.001
-num_episodes = 100
+num_episodes = 1000
 
 class CartPoleEnvManager():
     def __init__(self, device):
         self.device = device
-        self.env = gym.make('Acrobot-v1').unwrapped
+        self.env = JellyEnvironment()
         self.env.reset()
         self.current_screen = None
         self.done = False
@@ -38,38 +38,29 @@ class CartPoleEnvManager():
     def close(self):
         self.env.close()
 
-    def render(self, mode='human'):
-        return self.env.render(mode)
+    def render(self):
+        print(self.env.render())
 
     def num_actions_available(self):
         return self.env.action_space.n
 
     def take_action(self, action):        
         state, reward, self.done, _ = self.env.step(action.item())
-        artificial_reward = np.float32(((state[0]*1.2)+state[2])*-1)
+        artificial_reward = np.float32(reward)
         return torch.tensor([artificial_reward], device=self.device)
         
     def just_starting(self):
         return self.current_screen is None
 
     def get_state(self):
-        if self.just_starting() or self.done:
-            self.current_screen = self.get_processed_screen()
-            black_screen = torch.zeros_like(self.current_screen)
-            return black_screen
-        else:
-            s1 = self.current_screen
-            s2 = self.get_processed_screen()
-            self.current_screen = s2
-            return s2 - s1
+        state = torch.rand(1,2,2)
+        return state
 
     def get_screen_height(self):
-        screen = self.get_processed_screen()
-        return screen.shape[2]
+        return self.env.get_screen_height()
 
     def get_screen_width(self):
-        screen = self.get_processed_screen()
-        return screen.shape[3] 
+        return self.env.get_screen_width()
 
 
     def get_processed_screen(self):
@@ -105,7 +96,7 @@ class DQN(nn.Module):
     def __init__(self, img_height, img_width):
         super().__init__()
 
-        self.fc1 = nn.Linear(in_features=img_height*img_width*3, out_features=24)   
+        self.fc1 = nn.Linear(in_features=img_height*img_width, out_features=24)   
         self.fc2 = nn.Linear(in_features=24, out_features=32)
         self.out = nn.Linear(in_features=32, out_features=3)
 
@@ -216,6 +207,7 @@ def plot(values, moving_avg_period):
     print("Episode", len(values), "\n")
     
 
+
 def get_moving_average(period, values):
     values = torch.tensor(values, dtype=torch.float)
     if len(values) >= period:
@@ -227,7 +219,9 @@ def get_moving_average(period, values):
         moving_avg = torch.zeros(len(values))
         return moving_avg.numpy()
 
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 em = CartPoleEnvManager(device)
 strategy = EpsilonGreedyStrategy(eps_start, eps_end, eps_decay)
 agent = Agent(strategy, em.num_actions_available(), device)
@@ -244,10 +238,12 @@ episode_durations = []
 for episode in range(num_episodes):
     em.reset()
     state = em.get_state()
-    
-    for timestep in count():
+    total_score = 0
+    for timestep in range(50):
+        em.render()
         action = agent.select_action(state, policy_net)
         reward = em.take_action(action)
+        total_score = total_score + reward
         next_state = em.get_state()
         memory.push(Experience(state, action, next_state, reward))
         state = next_state
@@ -264,9 +260,9 @@ for episode in range(num_episodes):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        print(reward)
+        
         if em.done:
-            episode_durations.append(timestep)
+            episode_durations.append(total_score)
             plot(episode_durations, 100)
             break
     
